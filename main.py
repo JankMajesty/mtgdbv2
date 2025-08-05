@@ -190,13 +190,18 @@ class MTGDatabase:
             else:
                 types.append(word)
         
-        # Parse subtypes
-        subtypes = subtype_part.split() if subtype_part else []
+        # Parse subtypes and remove duplicates
+        subtypes = list(dict.fromkeys(subtype_part.split())) if subtype_part else []
         
         return supertypes, types, subtypes
 
     def insert_card(self, card_data: Dict) -> int:
         """Insert card and return CardID"""
+        # Debug: Print type line for problematic cards
+        if card_data['name'] in ['Alloy Golem', 'Henge Guardian', 'Hollow Warrior', 'Phyrexian Colossus']:
+            print(f"DEBUG INSERT: {card_data['name']}")
+            print(f"  Raw type_line: '{card_data.get('type_line', 'MISSING')}'")
+        
         # Get foreign key IDs using get_or_insert methods
         artist_id = self.get_or_insert_artist(card_data.get('artist', 'Unknown'))
         rarity_id = self.get_or_insert_rarity(card_data.get('rarity', 'Unknown'))
@@ -209,6 +214,13 @@ class MTGDatabase:
         # Parse type line for supertype
         supertypes, types, subtypes = self.parse_type_line(card_data.get('type_line', ''))
         primary_supertype = supertypes[0] if supertypes else None
+        
+        # Debug: Print parsed results for problematic cards
+        if card_data['name'] in ['Alloy Golem', 'Henge Guardian', 'Hollow Warrior', 'Phyrexian Colossus']:
+            print(f"  Parsed supertypes: {supertypes}")
+            print(f"  Parsed types: {types}")
+            print(f"  Parsed subtypes: {subtypes}")
+            print()
         
         # Insert card
         self.cursor.execute("""
@@ -243,16 +255,18 @@ class MTGDatabase:
                 (card_id, color_id)
             )
         
-        # Insert card types
-        for card_type in types:
+        # Insert card types (remove duplicates)
+        unique_types = list(dict.fromkeys(types))
+        for card_type in unique_types:
             type_id = self.get_or_insert_card_type(card_type)
             self.cursor.execute(
                 "INSERT OR IGNORE INTO Card_CardType (CardID, CardTypeID) VALUES (?, ?)",
                 (card_id, type_id)
             )
         
-        # Insert subtypes
-        for subtype in subtypes:
+        # Insert subtypes (remove duplicates)
+        unique_subtypes = list(dict.fromkeys(subtypes))
+        for subtype in unique_subtypes:
             subtype_id = self.get_or_insert_subtype(subtype)
             self.cursor.execute(
                 "INSERT OR IGNORE INTO Card_SubType (CardID, SubTypeID) VALUES (?, ?)",
@@ -361,6 +375,14 @@ class ScryfallAPI:
         # Count basic lands
         basic_land_count = sum(1 for card in cards if card['name'] in ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'])
         print(f"Found {basic_land_count} basic land printings in {set_code}")
+        
+        for card in cards:
+            if card['name'] in ['Alloy Golem', 'Henge Guardian']:
+                print(f"DEBUG: {card['name']}")
+                print(f"  type_line: '{card.get('type_line', 'MISSING')}'")
+                print(f"  types: {card.get('type_line', '').split('—')[0].strip() if '—' in card.get('type_line', '') else card.get('type_line', '')}")
+                print(f"  subtypes: {card.get('type_line', '').split('—')[1].strip() if '—' in card.get('type_line', '') else 'NONE'}")
+                print()
         
         return cards
 
